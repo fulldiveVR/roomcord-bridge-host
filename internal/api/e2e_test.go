@@ -63,8 +63,9 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	srv := &Server{Reg: reg, Logins: login.NewEngine(reg, log), Token: token, Version: "test", Log: log,
-		Extra: fakenet.Routes(fake, reg.Store)}
+		Extra: fakenet.Routes(fake, reg.Store), Public: fakenet.ProviderRoutes()}
 	ts := httptest.NewServer(srv.Handler())
+	fake.SetCaptureURL(ts.URL + "/fake-provider/login")
 	t.Cleanup(func() {
 		ts.Close()
 		reg.Stop()

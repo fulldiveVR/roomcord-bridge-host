@@ -16,7 +16,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package fakenet is a deterministic bridgev2 network connector for tests and for
-// the fixtures of the client test suite. Login: any phone number, then code 111111.
+// the fixtures of the client test suite. Login: any phone number, then code 111111;
+// or flow `web`, a browser-session capture against the fake provider pages.
 package fakenet
 
 import (
@@ -74,6 +75,8 @@ type Connector struct {
 	pending map[networkid.UserLoginID][]bridgev2.RemoteEvent
 	// seedMedia is the attachment id of the seeded media message per login.
 	seedMedia map[networkid.UserLoginID]string
+	// captureURL is the page of flow `web` (SetCaptureURL).
+	captureURL string
 }
 
 var (
@@ -129,6 +132,7 @@ func (fc *Connector) GetLoginFlows() []bridgev2.LoginFlow {
 	return []bridgev2.LoginFlow{
 		{ID: "phone", Name: "Phone", Description: "Any phone number, then code 111111"},
 		{ID: "emoji", Name: "Emoji", Description: "Confirm an emoji in the other app; completes after 30 s"},
+		{ID: "web", Name: "Browser", Description: "Sign in on the fake provider page; the client captures the session"},
 	}
 }
 
@@ -138,6 +142,8 @@ func (fc *Connector) CreateLogin(ctx context.Context, user *bridgev2.User, flowI
 		return &login{main: fc, user: user}, nil
 	case "emoji":
 		return &emojiLogin{main: fc, user: user, n: fc.counter.Add(1)}, nil
+	case "web":
+		return &webLogin{main: fc, user: user}, nil
 	}
 	return nil, bridgev2.ErrInvalidLoginFlowID
 }

@@ -99,8 +99,15 @@ func main() {
 		reg.AddUnavailable(id, reason)
 	}
 	extra := map[string]http.Handler{}
+	var public map[string]http.Handler
 	if fake != nil {
 		extra = fakenet.Routes(fake, reg.Store)
+		public = fakenet.ProviderRoutes()
+		captureURL := fakenet.DefaultCaptureURL
+		if _, port, err := net.SplitHostPort(addr); err == nil {
+			captureURL = "http://" + net.JoinHostPort("127.0.0.1", port) + fakenet.ProviderPath + "/login"
+		}
+		fake.SetCaptureURL(env("BRIDGE_HOST_FAKE_CAPTURE_URL", captureURL))
 	}
 	srv := &api.Server{
 		Reg:     reg,
@@ -109,6 +116,7 @@ func main() {
 		Version: Version,
 		Log:     log,
 		Extra:   extra,
+		Public:  public,
 	}
 	httpSrv := &http.Server{Addr: addr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {

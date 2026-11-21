@@ -69,7 +69,7 @@ func TestFakeEmojiFlow(t *testing.T) {
 	h := newHarness(t)
 	var nets []wire.Network
 	h.doJSON("GET", "/networks", nil, &nets, 200)
-	if len(nets) != 1 || len(nets[0].Flows) != 2 || nets[0].Flows[0].ID != "phone" || nets[0].Flows[1].ID != "emoji" {
+	if len(nets) != 1 || len(nets[0].Flows) != 3 || nets[0].Flows[0].ID != "phone" || nets[0].Flows[1].ID != "emoji" {
 		t.Fatalf("flows %+v", nets)
 	}
 	var r wire.LoginResponse

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -40,10 +41,11 @@ type Redeliverer interface {
 func Routes(conn *Connector, outbox Redeliverer) map[string]http.Handler {
 	h := &control{conn: conn, outbox: outbox}
 	return map[string]http.Handler{
-		"POST /fake/inject":    http.HandlerFunc(h.inject),
-		"POST /fake/seed":      http.HandlerFunc(h.seed),
-		"POST /fake/revoke":    http.HandlerFunc(h.revoke),
-		"POST /fake/redeliver": http.HandlerFunc(h.redeliver),
+		"POST /fake/inject":      http.HandlerFunc(h.inject),
+		"POST /fake/seed":        http.HandlerFunc(h.seed),
+		"POST /fake/revoke":      http.HandlerFunc(h.revoke),
+		"POST /fake/redeliver":   http.HandlerFunc(h.redeliver),
+		"POST /fake/capture-url": http.HandlerFunc(h.captureURL),
 	}
 }
 
@@ -124,6 +126,27 @@ func (h *control) inject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// captureURL sets the page of flow `web` for logins that start afterwards.
+func (h *control) captureURL(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fail(w, http.StatusBadRequest, "invalid_input", "bad json")
+		return
+	}
+	if req.URL != "" {
+		u, err := url.Parse(req.URL)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			fail(w, http.StatusBadRequest, "invalid_input", "url must be an http or https URL")
+			return
+		}
+	}
+	h.conn.SetCaptureURL(req.URL)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"url": h.conn.CaptureURL()})
 }
 
 type loginRequest struct {

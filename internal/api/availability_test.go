@@ -54,7 +54,7 @@ func TestNetworkAvailability(t *testing.T) {
 		t.Fatalf("networks %+v", nets)
 	}
 	fake, sig := nets[0], nets[1]
-	if fake.ID != "fake" || fake.Available || fake.Reason != "missing configuration: FAKE_API_KEY" || len(fake.Flows) != 2 ||
+	if fake.ID != "fake" || fake.Available || fake.Reason != "missing configuration: FAKE_API_KEY" || len(fake.Flows) != 3 ||
 		fake.Capabilities["loginReady"] != false || fake.Capabilities["configError"] != fake.Reason {
 		t.Fatalf("fake %+v", fake)
 	}
