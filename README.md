@@ -145,9 +145,9 @@ This project is not affiliated with, endorsed by or supported by Beeper, Matrix.
 
 ## Licence
 
-`roomcord-bridge-host` is free software under the GNU Affero General Public License, version 3 or later. The full text is in [LICENSE](LICENSE).
+The code of this project is free software under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`). No later version applies. The full text is in [LICENSE](LICENSE).
 
-The binary links AGPL-3.0 code (the bridges) and GPL-3.0 code (`go.mau.fi/libsignal`, `github.com/beeper/groupme-lib`). The combined binary is distributed under AGPL-3.0. The licence of every linked module is listed in [NOTICE.md](NOTICE.md).
+The binary links AGPL-3.0 code (the bridges) and GPL-3.0 code (`go.mau.fi/libsignal`, `github.com/beeper/groupme-lib`). Each linked upstream module keeps its own licence. Many of them are "AGPL-3.0 or later". The combined binary is distributed under AGPL-3.0. The licence of every linked module is listed in [NOTICE.md](NOTICE.md).
 
 ### Source of a running instance
 

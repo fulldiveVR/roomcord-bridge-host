@@ -1,8 +1,8 @@
 # Notice
 
-`roomcord-bridge-host` is free software under the GNU Affero General Public License, version 3 or later (see [LICENSE](LICENSE)).
+The code of `roomcord-bridge-host` is free software under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`, see [LICENSE](LICENSE)). No later version applies to our code.
 
-The compiled binary statically links the third-party Go modules below. The combined binary is distributed under AGPL-3.0, because it links AGPL-3.0 code: mautrix-whatsapp, mautrix-telegram, mautrix-meta, mautrix-slack, mautrix-linkedin, mautrix-twitter, mautrix-gmessages, beeper/groupme and beeper/tumblr-dms, and with `-tags signal` also mautrix-signal and the Rust library libsignal. The binary also contains GPL-3.0 code: `go.mau.fi/libsignal` and `github.com/beeper/groupme-lib`. GPL-3.0 section 13 and AGPL-3.0 section 13 permit this combination.
+The compiled binary statically links the third-party Go modules below. Each linked upstream module keeps its own licence, as listed in the tables. Many of the bridges are "AGPL-3.0 or later". The combined binary is distributed under AGPL-3.0, because it links AGPL-3.0 code: mautrix-whatsapp, mautrix-telegram, mautrix-meta, mautrix-slack, mautrix-linkedin, mautrix-twitter, mautrix-gmessages, beeper/groupme and beeper/tumblr-dms, and with `-tags signal` also mautrix-signal and the Rust library libsignal. The binary also contains GPL-3.0 code: `go.mau.fi/libsignal` and `github.com/beeper/groupme-lib`. GPL-3.0 section 13 and AGPL-3.0 section 13 permit this combination.
 
 The module list is the `dep` set of `go version -m` on the default build. Each licence was read from the licence file of that module version in the Go module cache. "AGPL-3.0-or-later" means: the LICENSE file is the AGPL-3.0 text and the source headers say "version 3 of the License, or (at your option) any later version".
 
