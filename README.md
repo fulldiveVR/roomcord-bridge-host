@@ -109,8 +109,9 @@ curl -H "Authorization: Bearer $BRIDGE_HOST_TOKEN" http://127.0.0.1:29391/health
 | `BRIDGE_HOST_NETWORKS` | `whatsapp,telegram` | Comma list of the network ids to start. An unknown id stops the host. |
 | `BRIDGE_HOST_LOG_LEVEL` | `info` | zerolog level. |
 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | unset | Telegram app credentials from my.telegram.org. Without them, Telegram is listed with `available: false` and every Telegram login returns `503 network_unavailable`. |
-| `BRIDGE_HOST_FAKE` | unset | `true` adds the test network `fake` and the control endpoints under `/fake/` (PROTOCOL.md section 10). Do not set it in a real deployment. |
+| `BRIDGE_HOST_FAKE` | unset | `true` adds the test network `fake`, the control endpoints under `/fake/` and the fake provider pages under `/fake-provider/`, which need no token (PROTOCOL.md sections 10 and 10a). Do not set it in a real deployment. |
 | `BRIDGE_HOST_FAKE_ID` | `fake` | Network id of the fake network. |
+| `BRIDGE_HOST_FAKE_CAPTURE_URL` | `http://127.0.0.1:<port>/fake-provider/login` | Page that the capture step of the fake flow `web` opens (PROTOCOL.md section 10a). |
 
 No other network needs an environment variable. Each network uses the defaults of its upstream example config, plus a shared bridgev2 core config in `internal/hosts` (split portals, relay off, backfill on with 50 initial messages).
 
@@ -135,7 +136,8 @@ docs/networks.md           per network: pinned commit, flows, first login step, 
 - Every request needs the bearer token, also the WebSocket upgrade. The host has one token and no per-user access control. Any holder of the token can use every linked account. The `userId` in the API separates data, it does not authenticate.
 - The data directory holds the account sessions of every linked account, the bridged messages and the media files. They are not encrypted by the host. Protect the directory like a credential store and do not commit it.
 - The host has no TLS of its own.
-- `BRIDGE_HOST_FAKE=true` adds test endpoints that inject events. Use it only for tests.
+- `BRIDGE_HOST_FAKE=true` adds test endpoints that inject events, and fake provider pages under `/fake-provider/` that need no token and answer loopback clients only. Use it only for tests.
+- A browser-session login sends session cookies and tokens of the user to the host. The host does not write them to its log (PROTOCOL.md section 3b). Upstream connectors log on their own; check their output before you raise the log level in production.
 
 ## Disclaimer
 

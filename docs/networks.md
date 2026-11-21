@@ -21,7 +21,56 @@ Summary (first step kind per flow):
 | `groupme` | yes | `web`: web_session_capture; `password`, `access-token`: form_input |
 | `tumblr` | yes | `browser`: web_session_capture; `password`: form_input |
 
-Mapping gaps (`failed` with `unsupported_method`): bridgev2 `webauthn` (mautrix-whatsapp passkey accounts), `client_http` (no bridge sends it unless the client opts in; the host does not), unknown display types, and the `can_cancel` back action (no route). A client without a browser or web view cannot complete a `web_session_capture` step.
+Mapping gaps (`failed` with `unsupported_method`): bridgev2 `webauthn` (mautrix-whatsapp passkey accounts), `client_http` (no bridge sends it unless the client opts in; the host does not), unknown display types, and the `can_cancel` back action (no route). A client without a browser or web view cannot complete a `web_session_capture` step, except with a paste of the values (PROTOCOL.md section 3b).
+
+## Capture flows and their sources
+
+Read from the source of the pinned modules, not run. No account was logged in. "Unverified" marks what the source does not say.
+
+`jsRequired` follows PROTOCOL.md section 3b: `true` only when upstream sets `js_required` (no pinned connector does), or when a required field has only `special` sources.
+
+Flows that start with a capture step:
+
+| Network, flow id | Step id, URL | Fields and sources | `waitForUrlPattern`, `extractJs` | `jsRequired` | httpOnly cookies (unverified, from general knowledge) |
+|---|---|---|---|---|---|
+| `messenger` `facebook` | `fi.mau.meta.cookies`, `https://www.facebook.com/`, user agent set | `xs`, `c_user`, `datr`: required, `cookie`, domain `facebook.com` | pattern set, no JS | absent | `xs`, `datr` |
+| `messenger` `messenger` | `fi.mau.meta.cookies`, `https://www.messenger.com/?no_redirect=true`, user agent set | the same three, domain `messenger.com` | pattern set, no JS | absent | `xs`, `datr` |
+| `instagram` `instagram` | `fi.mau.meta.cookies`, `https://www.instagram.com/accounts/login/` | required `sessionid`, `csrftoken`, `ds_user_id`; optional `rur`, `shbid`, `shbts`, `mid`, `ig_did`. All `cookie`, domain `instagram.com` | pattern set, no JS | absent | `sessionid` |
+| `twitter` `cookies` | `fi.mau.twitter.login.enter_cookies`, `https://x.com/i/flow/login` | `ct0`, `auth_token`: required, `cookie`, no domain | none, no JS | absent | `auth_token` |
+| `gmessages` `google` | `fi.mau.gmessages.google_account`, `https://accounts.google.com/AccountChooser?continue=https://messages.google.com/web/config` | required `SID`, `HSID`, `SSID`, `APISID`, `SAPISID` (`cookie`, domain `.google.com`), `OSID` (`cookie`, domain `messages.google.com`); optional `__Secure-1PSIDTS` | none, no JS | absent | `HSID`, `SSID`, `OSID`, `__Secure-1PSIDTS` |
+| `linkedin` `cookies` | `fi.mau.linkedin.login.enter_cookies`, `https://linkedin.com/login` | required, all `request_header` on `https://www.linkedin.com`: `cookie_header` (`Cookie`), `x_li_track` (`X-LI-Track`), `x_li_page_instance` (`X-LI-Page-Instance`), each with a pattern. Optional: user agent (`request_header` or `special`), `sec-ch-ua`, `sec-ch-ua-platform`, `sec-ch-ua-mobile`, `sec-ch-prefers-color-scheme` | pattern set; JS returns `navigator.userAgent` only | absent | not applicable (the `Cookie` request header carries them) |
+| `slack` `token` | `fi.mau.slack.login.enter_auth_token`, `https://slack.com/signin` | `auth_token`: required, pattern `^xoxc-.+$`, `special` `fi.mau.slack.auth_token` or `request_body` `token`. `cookie_token`: required, `cookie` `d` on `slack.com`, pattern `^xoxd-[a-zA-Z0-9/+=]+$` | none; JS polls `localStorage.localConfig_v2` and clicks "Use Slack in Browser" | absent | `d` |
+| `groupme` `web` | `fi.mau.groupme.login.web`, `https://web.groupme.com/` | `token`: required, `local_storage` `access_token`, or `cookie` `token` on `.groupme.com`, or `request_header` `X-Access-Token` on `^https://api\.groupme\.com/v[34]/` | pattern set, no JS | absent | none named |
+| `tumblr` `browser` | `com.ifixrobots.tumblr_dms.login.cookies`, `https://www.tumblr.com/messages` | required: `cookie_header` (`request_header` `Cookie`, or `special`), `sid` (`cookie`, no domain), `browser_user_agent` (`request_header` `user-agent`, with a pattern). Optional: cookies `pfu`, `logged_in`, `tmgioct`; `api_token` (`Authorization` header or `special`), `csrf_token` (`X-CSRF` or `X-CSRF-Token` header, or `special`), `api_version` (`X-Version` header) | pattern set; JS reads `document.cookie` and two tokens from the page | absent | `sid` |
+
+Capture steps inside other flows:
+
+| Network, flow | Step | Sources | `jsRequired` |
+|---|---|---|---|
+| `twitter` `password` | `browser_identity`, hidden, `https://x.com/robots.txt` | `browser_user_agent` (required) and the `sec-ch-ua` fields: `special` only | true |
+| `twitter` `password` | `castle_token`, hidden, same URL | `castle_token` (required): `special` or `local_storage`. Browser headers: `request_header` on `^https://x\.com/` or `special` | absent. The local-storage value exists only after `extractJs` ran, so a client still needs JavaScript here. |
+| `tumblr` `password` | `browser_verification`, hidden, `https://www.tumblr.com/login#...` | `blackbox_session_id` (required, `special`), `browser_user_agent` (`request_header`) | true |
+| `slack` `email` | `email_captcha`, only when Slack asks | one required `special` field | true |
+| `slack` `email` | `workspace_browser`, SSO workspaces | same fields as `token` | absent |
+| `messenger` native flows | `recaptcha`, only when Meta asks | `recaptcha_token` (required, `special`) | true |
+| `messenger` native flows | `google_oauth` | `oauth_token` (required, `special`) | true |
+| `instagram` native flows | `web_captcha`, only when asked | `captcha_token` (required, `special`), `captcha_user_agent` (`special`) | true |
+| `instagram` native flows | `web_challenge` | same cookie fields as `instagram` | absent |
+| `linkedin` `password` | browser fallback | same step as `cookies` | absent |
+
+What each value type needs from a client:
+
+| Need | Networks |
+|---|---|
+| Cookie store only (httpOnly included) | `messenger`, `instagram`, `twitter` `cookies`, `gmessages` |
+| Local storage (or a cookie, or a header) | `groupme` |
+| Request body, or JavaScript on the page | `slack` `token` |
+| Request headers (custom headers set by page JavaScript, and the `Cookie` header) | `linkedin`, `tumblr` `browser` |
+| JavaScript in the provider page, no other source | `twitter` `password`, `tumblr` `password`, every captcha step |
+
+Paste (PROTOCOL.md section 3b): a "Copy as cURL" command can give `cookie`, `request_header` and `request_body` values, so it can serve `messenger`, `instagram`, `twitter` `cookies`, `gmessages`, `linkedin`, `slack` `token` and `tumblr` `browser`. `groupme` `web` works too when the request has the `token` cookie or the `X-Access-Token` header. Steps with a required field that has only `local_storage` or `special` sources take a JSON object only.
+
+Unverified: which cookies are httpOnly; every provider behaviour (Google Messages cookie rotation and Device Bound Session Credentials in Chrome are named in the upstream docs, not tested here).
 
 All networks share one `maunium.net/go/mautrix` version: `v0.33.1-0.20261120111454-33abe66d85a0` (the highest that any pinned bridge requires; Go's minimum version selection picks it for all of them).
 
@@ -120,10 +169,10 @@ This is a personal Slack session of the user (browser token `xoxc-` plus cookie 
 | Flow id | Name | First step |
 |---|---|---|
 | `email` | Email | `form_input` `fi.mau.slack.login.enter_email`: one field `email` (type `email`, pattern `^[^@\s]+@[^@\s]+\.[^@\s]+$`, autofillDomain `slack.com`) |
-| `token` | Auth token & cookie | `web_session_capture` `fi.mau.slack.login.enter_auth_token`: url `https://slack.com/signin`, `extractJs` (about 800 characters, reads the token from `localStorage.localConfig_v2`), `jsRequired: true`; fields `auth_token` (pattern `^xoxc-.+$`, sources `special` `fi.mau.slack.auth_token`, or `request_body` `token` on `^https://.+?\.slack\.com/api/(client\|experiments\|api\|users\|teams\|conversations)\..+$`) and `cookie_token` (pattern `^xoxd-[a-zA-Z0-9/+=]+$`, cookie `d` on `slack.com`) |
+| `token` | Auth token & cookie | `web_session_capture` `fi.mau.slack.login.enter_auth_token`: url `https://slack.com/signin`, `extractJs` (about 800 characters, reads the token from `localStorage.localConfig_v2`), no `jsRequired` (the token also has a `request_body` source); fields `auth_token` (pattern `^xoxc-.+$`, sources `special` `fi.mau.slack.auth_token`, or `request_body` `token` on `^https://.+?\.slack\.com/api/(client\|experiments\|api\|users\|teams\|conversations)\..+$`) and `cookie_token` (pattern `^xoxd-[a-zA-Z0-9/+=]+$`, cookie `d` on `slack.com`) |
 | `app` | Slack app | `form_input` `fi.mau.slack.login.enter_app_tokens`: `bot_token` (`^xoxb-.+$`), `app_token` (`^xapp-.+$`), both type `token` |
 
-Later steps of `email`, from source: an optional captcha `web_session_capture` (`special` source, `extractJs`), `code_input` for the emailed code, `form_input` with a `select` of workspaces (skipped when there is one), an optional second-factor `code_input`, or a `web_session_capture` of the workspace in a browser for SSO workspaces. The browser steps need a client with a browser or web view.
+Later steps of `email`, from source: an optional captcha `web_session_capture` (`special` source, `extractJs`, `jsRequired: true`), `code_input` for the emailed code, `form_input` with a `select` of workspaces (skipped when there is one), an optional second-factor `code_input`, or a `web_session_capture` of the workspace in a browser for SSO workspaces. The browser steps need a client with a browser or web view.
 
 Unverified: anything after the first step, SSO workspaces, Slack Enterprise Grid, token lifetime.
 
@@ -139,7 +188,7 @@ Unverified: anything after the first step, SSO workspaces, Slack Enterprise Grid
 
 | Flow id | Name | First step |
 |---|---|---|
-| `cookies` | Cookies | `web_session_capture` `fi.mau.linkedin.login.enter_cookies`: url `https://linkedin.com/login`, waitForUrlPattern `^https://www\.linkedin\.com/feed.*$`, `extractJs` (81 characters, returns the user agent), `jsRequired: true`. Required fields from request headers on `https://www.linkedin.com`: `cookie_header` (`Cookie`, pattern `\bJSESSIONID=[^;]+`), `x_li_track` (`X-LI-Track`), `x_li_page_instance` (`X-LI-Page-Instance`). Optional: `User-Agent` (header or `special`), `Sec-Ch-Ua`, `Sec-Ch-Ua-Platform`, `Sec-Ch-Ua-Mobile`, `Sec-Ch-Prefers-Color-Scheme`. Field ids are prefixed `fi.mau.linkedin.login.` |
+| `cookies` | Cookies | `web_session_capture` `fi.mau.linkedin.login.enter_cookies`: url `https://linkedin.com/login`, waitForUrlPattern `^https://www\.linkedin\.com/feed.*$`, `extractJs` (81 characters, returns the user agent), no `jsRequired` (every required field is a request header). Required fields from request headers on `https://www.linkedin.com`: `cookie_header` (`Cookie`, pattern `\bJSESSIONID=[^;]+`), `x_li_track` (`X-LI-Track`), `x_li_page_instance` (`X-LI-Page-Instance`). Optional: `User-Agent` (header or `special`), `Sec-Ch-Ua`, `Sec-Ch-Ua-Platform`, `Sec-Ch-Ua-Mobile`, `Sec-Ch-Prefers-Color-Scheme`. Field ids are prefixed `fi.mau.linkedin.login.` |
 | `password` | Email and password | `form_input` `fi.mau.linkedin.login.credentials`: `identifier` (type `username`), `password` (both autofillDomain `linkedin.com`) |
 
 Later steps of `password`, from source: `code_input` (email, SMS or TOTP code), `form_input` `select` of an approval method, `external_approval_wait` (approve in the LinkedIn app, `can_cancel`), or a `browser_fallback` select followed by the cookie capture. The browser fallback needs a client with a browser or web view. LinkedIn rejects cookies used with another user agent (upstream docs), so the captured `User-Agent` matters.
@@ -163,7 +212,7 @@ Unverified: anything after the first step, LinkedIn's reaction to a datacenter I
 | `cookies` | Cookies | `web_session_capture` `fi.mau.twitter.login.enter_cookies`: url `https://x.com/i/flow/login`, required cookies `ct0` and `auth_token` (no cookieDomain), no waitForUrlPattern |
 | `password` | Username/password | `form_input` `fi.mau.twitter.login.enter_credentials`: `identifier` (type `username`, autofillDomain `x.com`), `password` |
 
-After the credentials, upstream always asks for a hidden `web_session_capture` (`fi.mau.twitter.login.browser_identity`: `x.com/robots.txt`, `extractJs`, `special` sources for the browser headers), then `external_approval_wait` (`prepare`), then another hidden capture for X's Castle anti-bot token, so the password flow needs a client with a browser too. Other later steps, from source: `code_input` or `form_input` for verification, a `select` of the second-factor method (a passkey/security-key option is listed as unsupported upstream), and `code_input` for the encrypted-DM PIN (`juicebox_pin`, also after the cookie flow). Upstream can route the password login's X requests through the client (`LoginStartParams.HTTP`); the host does not opt in.
+After the credentials, upstream always asks for a hidden `web_session_capture` (`fi.mau.twitter.login.browser_identity`: `x.com/robots.txt`, `extractJs`, `special` sources for the browser headers, `jsRequired: true`), then `external_approval_wait` (`prepare`), then another hidden capture for X's Castle anti-bot token, so the password flow needs a client with a browser too. Other later steps, from source: `code_input` or `form_input` for verification, a `select` of the second-factor method (a passkey/security-key option is listed as unsupported upstream), and `code_input` for the encrypted-DM PIN (`juicebox_pin`, also after the cookie flow). Upstream can route the password login's X requests through the client (`LoginStartParams.HTTP`); the host does not opt in.
 
 Unverified: anything after the first step, Castle token handling from the host's IP, PIN recovery, session lifetime.
 
@@ -236,9 +285,9 @@ Unverified: anything after the first step, token lifetime.
 
 | Flow id | Name | First step |
 |---|---|---|
-| `browser` | Browser | `web_session_capture` `com.ifixrobots.tumblr_dms.login.cookies`: url `https://www.tumblr.com/messages`, waitForUrlPattern `^https://www\.tumblr\.com/(?:messages\|messaging\|dashboard\|blog/[^/?#]+/messages)(?:[/?#].*)?$`, `extractJs` (about 940 characters), `jsRequired: true`. Required: `cookie_header` (request header `Cookie` or `special`), cookie `sid`, `browser_user_agent` (request header `user-agent`). Optional: cookies `pfu`, `logged_in`, `tmgioct`; `api_token` (`Authorization` or `special`), `csrf_token` (`X-CSRF`, `X-CSRF-Token` or `special`), `api_version` (`X-Version`) |
+| `browser` | Browser | `web_session_capture` `com.ifixrobots.tumblr_dms.login.cookies`: url `https://www.tumblr.com/messages`, waitForUrlPattern `^https://www\.tumblr\.com/(?:messages\|messaging\|dashboard\|blog/[^/?#]+/messages)(?:[/?#].*)?$`, `extractJs` (about 940 characters), no `jsRequired` (every required field has a cookie or header source). Required: `cookie_header` (request header `Cookie` or `special`), cookie `sid`, `browser_user_agent` (request header `user-agent`). Optional: cookies `pfu`, `logged_in`, `tmgioct`; `api_token` (`Authorization` or `special`), `csrf_token` (`X-CSRF`, `X-CSRF-Token` or `special`), `api_version` (`X-Version`) |
 | `password` | Email & password | `form_input` `com.ifixrobots.tumblr_dms.login.credentials`: `identifier` (type `email`, pattern `^[^@\s]+@[^@\s]+\.[^@\s]+$`), `password` (autofillDomain `tumblr.com`) |
 
-After the credentials (and after a second-factor code) upstream always asks for a hidden `web_session_capture` (`browser_verification`: a Tumblr Blackbox session id from `extractJs` and the browser user agent), so the password flow needs a client with a browser too. Other later steps, from source: `code_input` (`two_factor`), `form_input` `select` of the blog (`blog`), then `done`. The browser flow also works for Google and Apple sign-in accounts.
+After the credentials (and after a second-factor code) upstream always asks for a hidden `web_session_capture` (`browser_verification`: a Tumblr Blackbox session id from `extractJs` and the browser user agent, `jsRequired: true`), so the password flow needs a client with a browser too. Other later steps, from source: `code_input` (`two_factor`), `form_input` `select` of the blog (`blog`), then `done`. The browser flow also works for Google and Apple sign-in accounts.
 
 Unverified: anything after the first step.
