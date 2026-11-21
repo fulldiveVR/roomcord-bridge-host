@@ -265,7 +265,8 @@ type Step struct {
 	InitialCookies    []InitialCookie `json:"initialCookies,omitempty"`
 	// Hidden: the client runs the capture without showing the page (a provider script token, for example).
 	Hidden bool `json:"hidden,omitempty"`
-	// JSRequired: the capture needs JavaScript on the provider page (extractJs or a "special" source).
+	// JSRequired: the capture cannot finish without JavaScript on the provider page. Upstream said so,
+	// or a required field has only "special" sources.
 	JSRequired bool `json:"jsRequired,omitempty"`
 
 	LoginID    string `json:"loginId,omitempty"`

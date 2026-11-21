@@ -114,7 +114,7 @@ func MapStep(ls *bridgev2.LoginStep, loginKey func(string) string) wire.Step {
 		out.ExtractJS = p.ExtractJS
 		out.WaitForURLPattern = p.WaitForURLPattern
 		out.Hidden = p.Hidden
-		out.JSRequired = p.JSRequired || p.ExtractJS != ""
+		out.JSRequired = p.JSRequired
 		for _, c := range p.InitialCookies {
 			out.InitialCookies = append(out.InitialCookies, wire.InitialCookie{
 				Name: c.Name, Value: c.Value, Domain: c.Domain, Path: c.Path, Secure: c.Secure, HTTPOnly: c.HTTPOnly,
@@ -123,11 +123,15 @@ func MapStep(ls *bridgev2.LoginStep, loginKey func(string) string) wire.Step {
 		fields := make([]wire.CookieField, len(p.Fields))
 		for i, f := range p.Fields {
 			sources := make([]wire.CookieSource, len(f.Sources))
+			onlySpecial := len(f.Sources) > 0
 			for j, s := range f.Sources {
-				if s.Type == bridgev2.LoginCookieTypeSpecial {
-					out.JSRequired = true
+				if s.Type != bridgev2.LoginCookieTypeSpecial {
+					onlySpecial = false
 				}
 				sources[j] = wire.CookieSource{Type: string(s.Type), Name: s.Name, CookieDomain: s.CookieDomain, RequestURLRegex: s.RequestURLRegex}
+			}
+			if f.Required && onlySpecial {
+				out.JSRequired = true
 			}
 			fields[i] = wire.CookieField{ID: f.ID, Required: f.Required, Sources: sources, Pattern: f.Pattern}
 		}

@@ -91,7 +91,7 @@ func TestMapStep(t *testing.T) {
 				}}},
 			}},
 			wire.Step{StepID: "s.cookies", Kind: wire.KindWebSessionCapture, URL: "https://example.com/login", UserAgent: "UA",
-				ExtractJS: "js()", JSRequired: true, WaitForURLPattern: "^https://example.com/home", Fields: []wire.CookieField{{ID: "sid", Required: true, Sources: []wire.CookieSource{
+				ExtractJS: "js()", WaitForURLPattern: "^https://example.com/home", Fields: []wire.CookieField{{ID: "sid", Required: true, Sources: []wire.CookieSource{
 					{Type: "cookie", Name: "sid", CookieDomain: "example.com"},
 					{Type: "request_header", Name: "X-Sid", RequestURLRegex: "api"},
 				}}}}},
@@ -130,7 +130,7 @@ func TestMapStep(t *testing.T) {
 					{Type: bridgev2.LoginCookieTypeRequestBody, Name: "token", RequestURLRegex: "api"},
 				}}},
 			}},
-			wire.Step{StepID: "s.hidden", Kind: wire.KindWebSessionCapture, URL: "https://example.com/robots.txt", Hidden: true, JSRequired: true,
+			wire.Step{StepID: "s.hidden", Kind: wire.KindWebSessionCapture, URL: "https://example.com/robots.txt", Hidden: true,
 				InitialCookies: []wire.InitialCookie{{Name: "a", Value: "b", Domain: "example.com", Secure: true}},
 				Fields: []wire.CookieField{{ID: "token", Required: true, Pattern: "^t", Sources: []wire.CookieSource{
 					{Type: "special", Name: "castle_token"}, {Type: "local_storage", Name: "tok"}, {Type: "request_body", Name: "token", RequestURLRegex: "api"},
@@ -196,5 +196,74 @@ func TestMapError(t *testing.T) {
 		if got.Kind != wire.KindFailed || got.Error == nil || got.Error.Code != tc.code || got.Error.UpstreamCode != tc.upstream {
 			t.Errorf("MapError(%v) = %+v (err %+v), want code %s upstream %s", tc.err, got, got.Error, tc.code, tc.upstream)
 		}
+	}
+}
+
+func cookieStep(p bridgev2.LoginCookiesParams) *bridgev2.LoginStep {
+	return &bridgev2.LoginStep{Type: bridgev2.LoginStepTypeCookies, StepID: "s.capture", CookiesParams: &p}
+}
+
+func cookieField(id string, required bool, types ...bridgev2.LoginCookieFieldSourceType) bridgev2.LoginCookieField {
+	f := bridgev2.LoginCookieField{ID: id, Required: required}
+	for _, t := range types {
+		f.Sources = append(f.Sources, bridgev2.LoginCookieFieldSource{Type: t, Name: id})
+	}
+	return f
+}
+
+func TestCaptureJSRequired(t *testing.T) {
+	const (
+		cookie  = bridgev2.LoginCookieTypeCookie
+		storage = bridgev2.LoginCookieTypeLocalStorage
+		header  = bridgev2.LoginCookieTypeRequestHeader
+		body    = bridgev2.LoginCookieTypeRequestBody
+		special = bridgev2.LoginCookieTypeSpecial
+	)
+	tests := []struct {
+		name string
+		in   bridgev2.LoginCookiesParams
+		want bool
+	}{
+		{"cookies only", bridgev2.LoginCookiesParams{Fields: []bridgev2.LoginCookieField{cookieField("a", true, cookie)}}, false},
+		{"extract_js alone does not require JS", bridgev2.LoginCookiesParams{ExtractJS: "x()",
+			Fields: []bridgev2.LoginCookieField{cookieField("a", true, header)}}, false},
+		{"required field with a special and a non-JS source", bridgev2.LoginCookiesParams{ExtractJS: "x()",
+			Fields: []bridgev2.LoginCookieField{cookieField("a", true, special, body), cookieField("b", true, cookie)}}, false},
+		{"optional field with only special sources", bridgev2.LoginCookiesParams{ExtractJS: "x()",
+			Fields: []bridgev2.LoginCookieField{cookieField("a", true, storage), cookieField("ua", false, special)}}, false},
+		{"required field with only special sources", bridgev2.LoginCookiesParams{ExtractJS: "x()",
+			Fields: []bridgev2.LoginCookieField{cookieField("a", true, cookie), cookieField("tok", true, special, special)}}, true},
+		{"upstream js_required", bridgev2.LoginCookiesParams{JSRequired: true,
+			Fields: []bridgev2.LoginCookieField{cookieField("a", true, cookie)}}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := MapStep(cookieStep(tc.in), key).JSRequired; got != tc.want {
+				t.Errorf("jsRequired = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCapturePayloadPassThrough(t *testing.T) {
+	in := bridgev2.LoginCookiesParams{
+		URL: "https://example.com/login", UserAgent: "UA/1", ExtractJS: "x()", WaitForURLPattern: "^https://example\\.com/home$", Hidden: true,
+		InitialCookies: []bridgev2.LoginCookie{{Name: "n", Value: "v", Domain: "example.com", Path: "/p", Secure: true, HTTPOnly: true}},
+		Fields: []bridgev2.LoginCookieField{{ID: "f", Required: true, Pattern: "^v", Sources: []bridgev2.LoginCookieFieldSource{
+			{Type: bridgev2.LoginCookieTypeCookie, Name: "c", CookieDomain: "example.com"},
+			{Type: bridgev2.LoginCookieTypeRequestHeader, Name: "X-H", RequestURLRegex: "^https://example\\.com/api/"},
+		}}},
+	}
+	want := wire.Step{
+		StepID: "s.capture", Kind: wire.KindWebSessionCapture,
+		URL: "https://example.com/login", UserAgent: "UA/1", ExtractJS: "x()", WaitForURLPattern: "^https://example\\.com/home$", Hidden: true,
+		InitialCookies: []wire.InitialCookie{{Name: "n", Value: "v", Domain: "example.com", Path: "/p", Secure: true, HTTPOnly: true}},
+		Fields: []wire.CookieField{{ID: "f", Required: true, Pattern: "^v", Sources: []wire.CookieSource{
+			{Type: "cookie", Name: "c", CookieDomain: "example.com"},
+			{Type: "request_header", Name: "X-H", RequestURLRegex: "^https://example\\.com/api/"},
+		}}},
+	}
+	if got := MapStep(cookieStep(in), key); !reflect.DeepEqual(got, want) {
+		t.Errorf("MapStep()\n got %+v\nwant %+v", got, want)
 	}
 }
