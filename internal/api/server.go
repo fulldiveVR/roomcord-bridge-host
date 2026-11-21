@@ -45,6 +45,8 @@ type Server struct {
 	Log     zerolog.Logger
 	// Extra routes (e.g. the fake network's inject endpoint), mounted behind auth.
 	Extra map[string]http.Handler
+	// Public routes need no bearer token (the fake provider pages only).
+	Public map[string]http.Handler
 
 	subsMu sync.Mutex
 	subs   map[string]*subscriber
@@ -77,8 +79,20 @@ func (s *Server) Handler() http.Handler {
 	for pattern, h := range s.Extra {
 		mux.Handle(pattern, h)
 	}
-	return s.auth(mux)
+	if len(s.Public) == 0 {
+		return s.auth(mux)
+	}
+	outer := http.NewServeMux()
+	for pattern, h := range s.Public {
+		outer.Handle(pattern, h)
+	}
+	outer.Handle("/", s.auth(mux))
+	return outer
 }
+
+// maxSubmitBody caps the body of a step submit. A capture has its own limit of
+// 64 KB (login engine); this cap only bounds what the host reads.
+const maxSubmitBody = 256 * 1024
 
 func (s *Server) auth(next http.Handler) http.Handler {
 	expected := []byte("Bearer " + s.Token)
@@ -114,7 +128,12 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 
 func decode(r *http.Request, into any) error {
 	if err := json.NewDecoder(r.Body).Decode(into); err != nil {
-		return &login.Error{Status: 400, Code: "invalid_input", Message: "invalid JSON body: " + err.Error()}
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return &login.Error{Status: 400, Code: "invalid_input", Message: "the request body is too large"}
+		}
+		// The decoder's text can quote a piece of the body, so it is not passed on.
+		return &login.Error{Status: 400, Code: "invalid_input", Message: "invalid JSON body"}
 	}
 	return nil
 }
@@ -193,13 +212,15 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		StepID  string            `json:"stepId"`
 		Fields  map[string]string `json:"fields"`
 		Cookies map[string]string `json:"cookies"`
+		Paste   string            `json:"paste"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxSubmitBody)
 	if err := decode(r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	id := r.PathValue("processId")
-	step, err := s.Logins.Submit(r.Context(), id, req.StepID, req.Fields, req.Cookies)
+	step, err := s.Logins.Submit(r.Context(), id, req.StepID, login.Input{Fields: req.Fields, Cookies: req.Cookies, Paste: req.Paste})
 	if err != nil {
 		s.fail(w, r, err)
 		return

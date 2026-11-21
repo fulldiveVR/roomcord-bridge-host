@@ -194,7 +194,15 @@ func (e *Engine) get(processID string) *Process {
 	return e.procs[processID]
 }
 
-func (e *Engine) Submit(ctx context.Context, processID, stepID string, fields, cookies map[string]string) (wire.Step, error) {
+// Input is the body of a step submit. Fields answers an input step. Cookies or
+// Paste answers a capture step.
+type Input struct {
+	Fields  map[string]string
+	Cookies map[string]string
+	Paste   string
+}
+
+func (e *Engine) Submit(ctx context.Context, processID, stepID string, in Input) (wire.Step, error) {
 	p := e.get(processID)
 	if p == nil {
 		return wire.Step{}, apiErr(404, "connect_session_not_found", "unknown login process %q", processID)
@@ -212,7 +220,7 @@ func (e *Engine) Submit(ctx context.Context, processID, stepID string, fields, c
 	var run func(context.Context) (*bridgev2.LoginStep, error)
 	switch current.Type {
 	case bridgev2.LoginStepTypeUserInput:
-		input, verr := validateInput(current.UserInputParams.Fields, fields)
+		input, verr := validateInput(current.UserInputParams.Fields, in.Fields)
 		if verr != nil {
 			p.wire.Error = verr
 			defer p.mu.Unlock()
@@ -230,8 +238,16 @@ func (e *Engine) Submit(ctx context.Context, processID, stepID string, fields, c
 			p.mu.Unlock()
 			return wire.Step{}, apiErr(500, "internal_error", "login process does not accept cookies")
 		}
-		if cookies == nil {
-			cookies = fields
+		values := in.Cookies
+		if values == nil {
+			values = in.Fields
+		}
+		// A rejected capture keeps the upstream step: the client can submit again.
+		cookies, verr := captureInput(current.CookiesParams, values, in.Paste)
+		if verr != nil {
+			p.wire.Error = verr
+			defer p.mu.Unlock()
+			return p.wire, nil
 		}
 		run = func(ctx context.Context) (*bridgev2.LoginStep, error) { return ck.SubmitCookies(ctx, cookies) }
 	default:
@@ -279,8 +295,15 @@ func (e *Engine) apply(p *Process, step *bridgev2.LoginStep, err error) {
 		err = errors.New("connector returned neither a step nor an error")
 	}
 	if err != nil {
-		p.log.Warn().Err(err).Msg("Login step failed")
 		p.wire = MapError(err)
+		evt := p.log.Warn().Str("code", p.wire.Error.Code).Str("upstream_code", p.wire.Error.UpstreamCode)
+		if p.step != nil && p.step.Type == bridgev2.LoginStepTypeCookies {
+			// The error of a capture submit can quote a captured value: log its type only.
+			evt = evt.Str("error_type", fmt.Sprintf("%T", err))
+		} else {
+			evt = evt.Err(err)
+		}
+		evt.Msg("Login step failed")
 		go e.finish(p, nil, true)
 		p.finished = true
 		return
