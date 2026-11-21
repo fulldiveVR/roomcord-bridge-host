@@ -1,0 +1,22 @@
+# build output
+/bin/
+/roomcord-bridge-host
+*.exe
+*.test
+*.out
+
+# runtime data: account sessions, databases, media
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite*
+
+# logs and local configuration
+*.log
+/logs/
+.env
+.env.*
+
+.DS_Store
