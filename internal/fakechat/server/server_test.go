@@ -28,6 +28,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -324,5 +325,47 @@ func TestSeedTimesMoveForward(t *testing.T) {
 			t.Fatalf("deterministic=%v: first live message is %s after the newest seed message", deterministic, gap)
 		}
 		ts.Close()
+	}
+}
+
+func TestPhonePage(t *testing.T) {
+	c := newTC(t, 1)
+	get := func(path string) (int, string) {
+		resp, err := http.Get(c.ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(raw)
+	}
+	if _, body := get("/phone"); !strings.Contains(body, `id="none"`) || strings.Contains(body, `id="pending"`) {
+		t.Fatalf("empty phone page: %s", body)
+	}
+	var qr proto.QRStart
+	c.call("POST", "/api/v1/auth/qr", "", struct{}{}, &qr)
+	_, body := get("/phone")
+	for _, want := range []string{`id="pending"`, qr.QRID, `name="account"`, `<option value="demo" selected>Demo User</option>`, `id="link-device"`, "Link device"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("phone page lacks %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "demo-pass") {
+		t.Fatal("the phone page shows a test password")
+	}
+	resp, err := http.PostForm(c.ts.URL+"/phone/approve", url.Values{"qr": {qr.QRID}, "account": {"demo"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.Contains(string(raw), `id="approved"`) || !strings.Contains(string(raw), "Demo User is now signed in") {
+		t.Fatalf("approve: %d %s", resp.StatusCode, raw)
+	}
+	resp, _ = http.PostForm(c.ts.URL+"/phone/approve", url.Values{"qr": {"qr-nope"}, "account": {"demo"}})
+	raw, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 404 || !strings.Contains(string(raw), `id="error"`) {
+		t.Fatalf("bad code: %d %s", resp.StatusCode, raw)
 	}
 }

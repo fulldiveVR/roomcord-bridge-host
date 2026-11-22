@@ -177,7 +177,7 @@ A phone login with an unknown number creates the account `p<digits>`.
 
 | Flow | Steps on the wire | Test paths |
 |---|---|---|
-| `qr` | `qr` (pollable, refreshed with the same `stepId` when the code expires), `done` | Approve on the phone page `GET /phone` (pick the account, press Approve) or with `POST /control/qr/{qrId}/approve`. |
+| `qr` | `qr` (pollable, refreshed with the same `stepId` when the code expires), `done` | Approve on the phone page `GET /phone` (a "Link a device" screen: pick the account, press Link device) or with `POST /control/qr/{qrId}/approve`. |
 | `phone` | `phone_number_input`, `code_input`, `done` | SMS code is always `123456`. A number that starts with `+999` gives `invalid_phone_number`. A wrong code gives `invalid_code` with the attempts left in the message; the third wrong code fails the login. |
 | `password` | `form_input` (username, password), `code_input` when the account has 2FA, `done` | A wrong password gives the same step with `invalid_input`; a wrong 2FA code gives `invalid_code`. |
 | `web` | `web_session_capture`, `done` | Opens `<FAKECHAT_WEB_URL>/web/login`. The sign-in form (and the 2FA form for `secure`) sets the httpOnly cookie `fc_session` and the cookie `fc_user`, then redirects to `/web/app`. Capture fields: `session` (required, cookie `fc_session`, pattern `^fcs_[0-9a-f]+$`) and `user` (optional, cookie `fc_user`). `waitForUrlPattern` matches `<origin>/web/app`. A well-formed session that the server does not know fails the login. |
