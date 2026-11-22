@@ -362,6 +362,13 @@ func TestPhonePage(t *testing.T) {
 	if resp.StatusCode != 200 || !strings.Contains(string(raw), `id="approved"`) || !strings.Contains(string(raw), "Demo User is now signed in") {
 		t.Fatalf("approve: %d %s", resp.StatusCode, raw)
 	}
+	c.call("POST", "/api/v1/auth/qr", "", struct{}{}, &qr)
+	if code := c.call("DELETE", "/api/v1/auth/qr/"+qr.QRID, "", nil, nil); code != 204 {
+		t.Fatalf("cancel QR: %d", code)
+	}
+	if _, body := get("/phone"); strings.Contains(body, qr.QRID) || !strings.Contains(body, `id="none"`) {
+		t.Fatalf("a cancelled code is still offered: %s", body)
+	}
 	resp, _ = http.PostForm(c.ts.URL+"/phone/approve", url.Values{"qr": {"qr-nope"}, "account": {"demo"}})
 	raw, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()

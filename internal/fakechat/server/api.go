@@ -47,6 +47,7 @@ func (s *Server) Handler() http.Handler {
 	auth := func(scope string, h http.HandlerFunc) http.Handler { return s.withFault(scope, http.HandlerFunc(h)) }
 	mux.Handle("POST /api/v1/auth/qr", auth(proto.ScopeAuth, s.qrStart))
 	mux.Handle("GET /api/v1/auth/qr/{qrId}", auth(proto.ScopeAuth, s.qrPoll))
+	mux.Handle("DELETE /api/v1/auth/qr/{qrId}", auth(proto.ScopeAuth, s.qrCancel))
 	mux.Handle("POST /api/v1/auth/phone", auth(proto.ScopeAuth, s.phoneStart))
 	mux.Handle("POST /api/v1/auth/phone/verify", auth(proto.ScopeAuth, s.phoneVerify))
 	mux.Handle("POST /api/v1/auth/password", auth(proto.ScopeAuth, s.passwordLogin))
@@ -207,6 +208,16 @@ func (s *Server) qrPoll(w http.ResponseWriter, r *http.Request) {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+// qrCancel drops a code that is not approved yet, so the phone page stops offering it.
+func (s *Server) qrCancel(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	if q := s.qrs[r.PathValue("qrId")]; q != nil && q.approvedBy == "" {
+		delete(s.qrs, q.QRID)
+	}
+	s.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ApproveQR approves a pending QR code for an account, like a scan on the phone.
