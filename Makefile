@@ -2,7 +2,7 @@ GO ?= go
 BIN := bin/roomcord-bridge-host
 DATA_DIR ?= ./data
 
-.PHONY: build build-signal test run vet
+.PHONY: build build-signal build-fakechat run-fakechat test run vet
 
 build:
 	$(GO) build -o $(BIN) ./cmd/roomcord-bridge-host
@@ -12,6 +12,12 @@ LIBSIGNAL_DIR ?=
 build-signal:
 	@test -n "$(LIBSIGNAL_DIR)" || (echo "set LIBSIGNAL_DIR to the directory that holds libsignal_ffi.a" >&2; exit 1)
 	LIBRARY_PATH=$(LIBSIGNAL_DIR):$$LIBRARY_PATH $(GO) build -tags signal -o $(BIN) ./cmd/roomcord-bridge-host
+
+build-fakechat:
+	$(GO) build -o bin/fakechat ./cmd/fakechat
+
+run-fakechat: build-fakechat
+	./bin/fakechat
 
 vet:
 	$(GO) vet ./...

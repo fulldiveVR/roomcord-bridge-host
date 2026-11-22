@@ -20,6 +20,7 @@ Summary (first step kind per flow):
 | `line` | yes | `dev.highest.matrix.line.email_login`: form_input |
 | `groupme` | yes | `web`: web_session_capture; `password`, `access-token`: form_input |
 | `tumblr` | yes | `browser`: web_session_capture; `password`: form_input |
+| `fakechat` | yes, test network, needs `FAKECHAT_URL` | `qr`: qr, `phone`: phone_number_input, `password`: form_input, `web`: web_session_capture |
 
 Mapping gaps (`failed` with `unsupported_method`): bridgev2 `webauthn` (mautrix-whatsapp passkey accounts), `client_http` (no bridge sends it unless the client opts in; the host does not), unknown display types, and the `can_cancel` back action (no route). A client without a browser or web view cannot complete a `web_session_capture` step, except with a paste of the values (PROTOCOL.md section 3b).
 
@@ -291,3 +292,25 @@ Unverified: anything after the first step, token lifetime.
 After the credentials (and after a second-factor code) upstream always asks for a hidden `web_session_capture` (`browser_verification`: a Tumblr Blackbox session id from `extractJs` and the browser user agent, `jsRequired: true`), so the password flow needs a client with a browser too. Other later steps, from source: `code_input` (`two_factor`), `form_input` `select` of the blog (`blog`), then `done`. The browser flow also works for Google and Apple sign-in accounts.
 
 Unverified: anything after the first step.
+
+## fakechat: FakeChat (test network)
+
+| Item | Value |
+|---|---|
+| Module | this repository: connector `internal/fakechat/connector`, server `cmd/fakechat` |
+| Licence | AGPL-3.0-only (our code) |
+| Config / env | `FAKECHAT_URL` (required; without it `available: false`, `reason: "missing configuration: FAKECHAT_URL"`), `FAKECHAT_WEB_URL` (optional, base of the capture page) |
+| Build | default build. Inert unless `BRIDGE_HOST_NETWORKS` names it. Adds no route to the host. |
+
+The connector talks to a separate FakeChat server over HTTP and WebSocket. Unlike every other section, the steps below were run end to end by `go test ./internal/api -run FakeChat`.
+
+| Flow id | Name | Steps (observed) |
+|---|---|---|
+| `qr` | QR code | `qr` `fakechat.login.qr`, data `fakechat://link?qr=<id>&s=<8 hex>`, refreshed 3 times with the same step id, then `failed` `expired`; `done` after an approve on `/phone` |
+| `phone` | Phone number | `phone_number_input` `fakechat.login.phone` (field `phone`; `+999...` gives `invalid_phone_number`), `code_input` `fakechat.login.sms_code` (field `code`, `123456`; a wrong code gives `invalid_code`, the third one `failed`), `done` |
+| `password` | Password | `form_input` `fakechat.login.credentials` (`username`, `password`; wrong gives `invalid_input`), `code_input` `fakechat.login.2fa` for accounts with 2FA (wrong gives `invalid_code`), `done` |
+| `web` | Browser | `web_session_capture` `fakechat.login.web`: url `<FAKECHAT_WEB_URL>/web/login`, fields `session` (required, cookie `fc_session`, httpOnly, pattern `^fcs_[0-9a-f]+$`, cookieDomain = host of the URL) and `user` (optional, cookie `fc_user`), `waitForUrlPattern` `^<origin>/web/app(?:[?#].*)?$`, no `extractJs`; `done`, or `failed` for an unknown session |
+
+Accounts, chats, message types, media and the control API: README.md, section FakeChat.
+
+Account state: `CONNECTED` after the stream opens; `TRANSIENT_DISCONNECT` (`fc-disconnected`, or `fc-rate-limited` after a 429) while it reconnects; `BAD_CREDENTIALS` (`fc-session-revoked`) when the server ends the session.

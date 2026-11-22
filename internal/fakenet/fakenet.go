@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rs/xid"
 	up "go.mau.fi/util/configupgrade"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -358,7 +359,9 @@ func (c *Client) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *
 }
 
 func (c *Client) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (*bridgev2.MatrixMessageResponse, error) {
-	id := networkid.MessageID(fmt.Sprintf("out-%d", c.main.counter.Add(1)))
+	// The id must stay unique across host restarts: the bridgev2 database keeps the
+	// ids of earlier runs, and a reused id is "sent but not stored".
+	id := networkid.MessageID("out-" + xid.New().String())
 	sent := SentMessage{LoginID: c.login.ID, ChatID: msg.Portal.ID, ID: id, Text: msg.Content.Body}
 	if msg.ReplyTo != nil {
 		sent.ReplyTo = msg.ReplyTo.ID

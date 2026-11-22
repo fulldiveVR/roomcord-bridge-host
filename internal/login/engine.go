@@ -344,11 +344,12 @@ func (e *Engine) waitLoop(p *Process) {
 			p.mu.Unlock()
 			return
 		}
-		p.waiting = false
+		// p.waiting stays true during apply, so a refreshed display step (a new QR
+		// code) does not start a second loop next to this one.
 		e.apply(p, step, err)
 		cont := !p.finished && step != nil && step.Type == bridgev2.LoginStepTypeDisplayAndWait
-		if cont {
-			p.waiting = true
+		if !cont {
+			p.waiting = false
 		}
 		p.mu.Unlock()
 		if !cont {

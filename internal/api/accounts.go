@@ -84,7 +84,7 @@ func (s *Server) accountState(a *account) wire.Health {
 		h = wire.Health{State: "connecting", Since: time.Now().UTC()}
 	}
 	if a.login != nil {
-		latest := a.login.BridgeState.GetPrevUnsent()
+		latest := queuedState(a.login.BridgeState)
 		if latest.StateEvent == "" {
 			latest = a.login.BridgeState.GetPrev()
 		}
