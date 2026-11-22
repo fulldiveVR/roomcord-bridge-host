@@ -160,7 +160,7 @@ BRIDGE_HOST_TOKEN=dev-token BRIDGE_HOST_NETWORKS=fakechat FAKECHAT_URL=http://12
 |---|---|---|---|
 | `-addr` | `FAKECHAT_ADDR` | `127.0.0.1:29400` | Listen address. |
 | `-control-token` | `FAKECHAT_CONTROL_TOKEN` | `fakechat-control` | Bearer token of `/control/*`. |
-| `-seed` | `FAKECHAT_SEED` | unset | An integer. Ids, tokens and message timestamps are deterministic (a virtual clock from 2026-01-01, one second per event). Without it, timestamps are real time and tokens are random. Ids are counters in both cases. |
+| `-seed` | `FAKECHAT_SEED` | unset | An integer. Ids, tokens and message timestamps are deterministic (a virtual clock from 2026-01-01, one second per event). Without it, timestamps are real time and tokens are random. Ids are counters. Without a seed, every id also carries the start time of the server state (`msg-<epoch>-000003`), so a restarted server never reuses an id that a host stored before. With a seed, ids repeat on every start (`msg-000003`): give the host a fresh data dir after a FakeChat restart. |
 | `-public-url` | `FAKECHAT_PUBLIC_URL` | request host | Base URL in QR instructions. |
 | `-qr-ttl` | | `60s` | Lifetime of one QR code. The connector shows a new code 3 times, then the login fails with `expired`. |
 
@@ -244,7 +244,7 @@ Scenarios:
 | `group-events` | `member_join`, `member_leave`, `rename` |
 | `burst` | `count` text messages (default 20) |
 
-Examples:
+Examples (ids as with `-seed 1`):
 
 ```
 C='Authorization: Bearer fakechat-control'

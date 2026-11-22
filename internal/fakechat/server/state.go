@@ -28,6 +28,7 @@ import (
 	"image/color"
 	mrand "math/rand/v2"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -153,10 +154,13 @@ type Server struct {
 	cfg Config
 	log zerolog.Logger
 
-	mu          sync.Mutex
-	rng         *mrand.Rand
-	clock       time.Time
-	counter     int
+	mu      sync.Mutex
+	rng     *mrand.Rand
+	clock   time.Time
+	counter int
+	// epoch is part of every id without a seed, so a restarted or reset server
+	// never hands out an id that a bridge already stored from an earlier run.
+	epoch       string
 	accounts    map[string]*account
 	sessions    map[string]*session // access tokens
 	webSessions map[string]string   // web cookie value -> account id
@@ -191,6 +195,10 @@ func (s *Server) reset(seed int64) {
 	s.rng = mrand.New(mrand.NewPCG(uint64(seed), 0xfa4ec4a7))
 	s.clock = time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC).Add(time.Duration(seed) * time.Second)
 	s.counter = 0
+	s.epoch = ""
+	if !s.cfg.Deterministic {
+		s.epoch = strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
 	s.accounts = map[string]*account{}
 	s.sessions = map[string]*session{}
 	s.webSessions = map[string]string{}
@@ -226,6 +234,9 @@ func (s *Server) now() time.Time {
 
 func (s *Server) nextID(prefix string) string {
 	s.counter++
+	if s.epoch != "" {
+		return fmt.Sprintf("%s-%s-%06d", prefix, s.epoch, s.counter)
+	}
 	return fmt.Sprintf("%s-%06d", prefix, s.counter)
 }
 

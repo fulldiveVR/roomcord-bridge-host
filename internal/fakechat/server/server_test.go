@@ -273,3 +273,19 @@ func TestHistoryFaultsAndStream(t *testing.T) {
 		t.Fatalf("token after revoke %d", code)
 	}
 }
+
+// Without a seed, ids carry the start time of the server state, so a restarted
+// FakeChat never reuses an id that a bridge stored before.
+func TestIDsDifferAcrossRestarts(t *testing.T) {
+	first := New(Config{ControlToken: ctl})
+	second := New(Config{ControlToken: ctl})
+	a := first.accounts[DemoAccount].chats[ChatAlice].messages[0].ID
+	b := second.accounts[DemoAccount].chats[ChatAlice].messages[0].ID
+	if a == b || !strings.HasPrefix(a, "msg-") {
+		t.Fatalf("ids %s and %s", a, b)
+	}
+	first.Reset(0)
+	if c := first.accounts[DemoAccount].chats[ChatAlice].messages[0].ID; c == a {
+		t.Fatalf("reset reused %s", c)
+	}
+}
