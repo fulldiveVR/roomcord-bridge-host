@@ -223,13 +223,19 @@ func (s *Server) reset(seed int64) {
 func catalogID(name string) string { return "cat-" + name }
 
 // now returns the time of a new message or event. With a seed it is a virtual
-// clock that moves one second per call.
+// clock that moves one second per call. Without one it is the wall clock, made
+// strictly rising so two messages in one millisecond still order by time.
 func (s *Server) now() time.Time {
 	if s.cfg.Deterministic {
 		s.clock = s.clock.Add(time.Second)
 		return s.clock
 	}
-	return time.Now().UTC().Truncate(time.Millisecond)
+	t := time.Now().UTC().Truncate(time.Millisecond)
+	if !t.After(s.clock) {
+		t = s.clock.Add(time.Millisecond)
+	}
+	s.clock = t
+	return t
 }
 
 func (s *Server) nextID(prefix string) string {
@@ -308,12 +314,17 @@ func (s *Server) createAccountLocked(req proto.CreateAccount) (*account, error) 
 	return a, nil
 }
 
+// seedHistorySpan is how far before account creation the seed history starts.
+// The newest seed message is about an hour old, so live messages sort after
+// all of it and the same clock time never shows up on two days.
+const seedHistorySpan = 5 * time.Hour
+
 // seedChats creates the four seed chats with past messages. Seed history is not
 // in the event stream: a client gets it by backfill.
 func (s *Server) seedChats(a *account) {
-	base := s.now().Add(-24 * time.Hour)
+	base := s.now().Add(-seedHistorySpan)
 	if !s.cfg.Deterministic {
-		base = time.Now().UTC().Add(-24 * time.Hour).Truncate(time.Second)
+		base = time.Now().UTC().Add(-seedHistorySpan).Truncate(time.Second)
 	}
 	add := func(c *chat, sender, text string, at time.Time) {
 		m := &proto.Message{ID: s.nextID("msg"), ChatID: c.ID, SenderID: sender, TS: at, Kind: proto.KindText, Text: text}

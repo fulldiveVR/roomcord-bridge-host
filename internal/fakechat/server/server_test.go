@@ -289,3 +289,40 @@ func TestIDsDifferAcrossRestarts(t *testing.T) {
 		t.Fatalf("reset reused %s", c)
 	}
 }
+
+// Seed history ends shortly before live traffic, and every chat reads forward
+// in time across the seed and the live messages.
+func TestSeedTimesMoveForward(t *testing.T) {
+	for _, deterministic := range []bool{true, false} {
+		ts := httptest.NewServer(New(Config{ControlToken: ctl, Seed: 7, Deterministic: deterministic}).Handler())
+		c := &tc{t: t, ts: ts}
+		tok := c.login("demo", DemoPassword)
+		var newestSeed time.Time
+		for _, id := range []string{ChatAlice, ChatBob, ChatProject, ChatFamily} {
+			var page proto.MessagePage
+			c.call("GET", "/api/v1/chats/"+id+"/messages?limit=200", tok, nil, &page)
+			if last := page.Messages[len(page.Messages)-1].TS; last.After(newestSeed) {
+				newestSeed = last
+			}
+		}
+		if code := c.call("POST", "/control/accounts/demo/scenario", ctl, proto.ScenarioRequest{Name: "burst", Count: 3, ChatID: ChatAlice}, nil); code != 200 {
+			t.Fatalf("scenario %d", code)
+		}
+		for _, id := range []string{ChatAlice, ChatBob, ChatProject, ChatFamily} {
+			var page proto.MessagePage
+			c.call("GET", "/api/v1/chats/"+id+"/messages?limit=200", tok, nil, &page)
+			for i := 1; i < len(page.Messages); i++ {
+				if !page.Messages[i].TS.After(page.Messages[i-1].TS) {
+					t.Fatalf("deterministic=%v %s: message %d at %s is not after %s", deterministic, id, i, page.Messages[i].TS, page.Messages[i-1].TS)
+				}
+			}
+		}
+		var alice proto.MessagePage
+		c.call("GET", "/api/v1/chats/"+ChatAlice+"/messages?limit=3", tok, nil, &alice)
+		gap := alice.Messages[0].TS.Sub(newestSeed)
+		if gap <= 0 || gap > 2*time.Hour {
+			t.Fatalf("deterministic=%v: first live message is %s after the newest seed message", deterministic, gap)
+		}
+		ts.Close()
+	}
+}
