@@ -162,6 +162,10 @@ Upstream flow ids at the pinned commits. Per-network details (first steps observ
 | fake | `phone` | `phone_number_input` (field `phone_number`), `code_input` (field `code`, value `111111`), `done` |
 | fake | `emoji` | `external_approval_wait` (emoji), `done` after 30 s |
 | fake | `web` | `web_session_capture` (section 10a), `done` |
+| fakechat | `qr` | `qr` (refreshing), `done` |
+| fakechat | `phone` | `phone_number_input` (field `phone`), `code_input` (field `code`, value `123456`), `done` |
+| fakechat | `password` | `form_input` (`username`, `password`), `code_input?` (2FA), `done` |
+| fakechat | `web` | `web_session_capture` (cookie `fc_session`), `done` |
 
 ## 5. Identifiers and accounts
 
@@ -277,7 +281,7 @@ The `session` cookie has the path `/fake-provider`, so it does not replace a `se
 
 ## 11. Environment
 
-`BRIDGE_HOST_TOKEN` (required), `BRIDGE_HOST_ADDR`, `BRIDGE_HOST_DATA_DIR`, `BRIDGE_HOST_NETWORKS`, `BRIDGE_HOST_FAKE`, `BRIDGE_HOST_FAKE_ID`, `BRIDGE_HOST_FAKE_CAPTURE_URL` (section 10a), `BRIDGE_HOST_LOG_LEVEL`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`: see README.md. No other network needs an env variable (docs/networks.md).
+`BRIDGE_HOST_TOKEN` (required), `BRIDGE_HOST_ADDR`, `BRIDGE_HOST_DATA_DIR`, `BRIDGE_HOST_NETWORKS`, `BRIDGE_HOST_FAKE`, `BRIDGE_HOST_FAKE_ID`, `BRIDGE_HOST_FAKE_CAPTURE_URL` (section 10a), `BRIDGE_HOST_LOG_LEVEL`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `FAKECHAT_URL`, `FAKECHAT_WEB_URL` (test network `fakechat`): see README.md. No other network needs an env variable (docs/networks.md).
 
 ## 12. Tests
 
