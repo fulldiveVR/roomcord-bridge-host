@@ -67,3 +67,17 @@ func tempDir(t *testing.T) string {
 	})
 	return dir
 }
+
+// FakeChat is inert without FAKECHAT_URL: the network starts but reports the missing setting.
+func TestFakeChatNeedsURL(t *testing.T) {
+	t.Setenv("FAKECHAT_URL", "")
+	f, _ := Lookup("fakechat")
+	reg, err := hosts.Start(context.Background(), tempDir(t), []hosts.Factory{f}, zerolog.Nop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reg.Stop()
+	if n := reg.Get("fakechat"); n.ConfigError == nil || n.ConfigError.Error() != "missing configuration: FAKECHAT_URL" {
+		t.Fatalf("config error %v", n.ConfigError)
+	}
+}
