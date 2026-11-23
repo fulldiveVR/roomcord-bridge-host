@@ -138,6 +138,10 @@ func (a *API) QRPoll(ctx context.Context, qrID string, wait time.Duration) (out 
 	return
 }
 
+func (a *API) QRCancel(ctx context.Context, qrID string) error {
+	return a.do(ctx, "DELETE", "/api/v1/auth/qr/"+esc(qrID), nil, nil)
+}
+
 func (a *API) PhoneStart(ctx context.Context, phone string) (out proto.Challenge, err error) {
 	err = a.do(ctx, "POST", "/api/v1/auth/phone", proto.PhoneStart{Phone: phone}, &out)
 	return

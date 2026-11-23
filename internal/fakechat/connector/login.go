@@ -158,6 +158,16 @@ type qrLogin struct {
 
 var _ bridgev2.LoginProcessDisplayAndWait = (*qrLogin)(nil)
 
+// Cancel withdraws the shown code, like closing "Link a device" on the computer.
+func (l *qrLogin) Cancel() {
+	if l.qr.QRID == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = l.api.QRCancel(ctx, l.qr.QRID)
+}
+
 func (l *qrLogin) step() *bridgev2.LoginStep {
 	return &bridgev2.LoginStep{
 		Type:                 bridgev2.LoginStepTypeDisplayAndWait,

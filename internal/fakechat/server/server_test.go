@@ -28,6 +28,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -287,5 +288,91 @@ func TestIDsDifferAcrossRestarts(t *testing.T) {
 	first.Reset(0)
 	if c := first.accounts[DemoAccount].chats[ChatAlice].messages[0].ID; c == a {
 		t.Fatalf("reset reused %s", c)
+	}
+}
+
+// Seed history ends shortly before live traffic, and every chat reads forward
+// in time across the seed and the live messages.
+func TestSeedTimesMoveForward(t *testing.T) {
+	for _, deterministic := range []bool{true, false} {
+		ts := httptest.NewServer(New(Config{ControlToken: ctl, Seed: 7, Deterministic: deterministic}).Handler())
+		c := &tc{t: t, ts: ts}
+		tok := c.login("demo", DemoPassword)
+		var newestSeed time.Time
+		for _, id := range []string{ChatAlice, ChatBob, ChatProject, ChatFamily} {
+			var page proto.MessagePage
+			c.call("GET", "/api/v1/chats/"+id+"/messages?limit=200", tok, nil, &page)
+			if last := page.Messages[len(page.Messages)-1].TS; last.After(newestSeed) {
+				newestSeed = last
+			}
+		}
+		if code := c.call("POST", "/control/accounts/demo/scenario", ctl, proto.ScenarioRequest{Name: "burst", Count: 3, ChatID: ChatAlice}, nil); code != 200 {
+			t.Fatalf("scenario %d", code)
+		}
+		for _, id := range []string{ChatAlice, ChatBob, ChatProject, ChatFamily} {
+			var page proto.MessagePage
+			c.call("GET", "/api/v1/chats/"+id+"/messages?limit=200", tok, nil, &page)
+			for i := 1; i < len(page.Messages); i++ {
+				if !page.Messages[i].TS.After(page.Messages[i-1].TS) {
+					t.Fatalf("deterministic=%v %s: message %d at %s is not after %s", deterministic, id, i, page.Messages[i].TS, page.Messages[i-1].TS)
+				}
+			}
+		}
+		var alice proto.MessagePage
+		c.call("GET", "/api/v1/chats/"+ChatAlice+"/messages?limit=3", tok, nil, &alice)
+		gap := alice.Messages[0].TS.Sub(newestSeed)
+		if gap <= 0 || gap > 2*time.Hour {
+			t.Fatalf("deterministic=%v: first live message is %s after the newest seed message", deterministic, gap)
+		}
+		ts.Close()
+	}
+}
+
+func TestPhonePage(t *testing.T) {
+	c := newTC(t, 1)
+	get := func(path string) (int, string) {
+		resp, err := http.Get(c.ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(raw)
+	}
+	if _, body := get("/phone"); !strings.Contains(body, `id="none"`) || strings.Contains(body, `id="pending"`) {
+		t.Fatalf("empty phone page: %s", body)
+	}
+	var qr proto.QRStart
+	c.call("POST", "/api/v1/auth/qr", "", struct{}{}, &qr)
+	_, body := get("/phone")
+	for _, want := range []string{`id="pending"`, qr.QRID, `name="account"`, `<option value="demo" selected>Demo User</option>`, `id="link-device"`, "Link device"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("phone page lacks %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "demo-pass") {
+		t.Fatal("the phone page shows a test password")
+	}
+	resp, err := http.PostForm(c.ts.URL+"/phone/approve", url.Values{"qr": {qr.QRID}, "account": {"demo"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.Contains(string(raw), `id="approved"`) || !strings.Contains(string(raw), "Demo User is now signed in") {
+		t.Fatalf("approve: %d %s", resp.StatusCode, raw)
+	}
+	c.call("POST", "/api/v1/auth/qr", "", struct{}{}, &qr)
+	if code := c.call("DELETE", "/api/v1/auth/qr/"+qr.QRID, "", nil, nil); code != 204 {
+		t.Fatalf("cancel QR: %d", code)
+	}
+	if _, body := get("/phone"); strings.Contains(body, qr.QRID) || !strings.Contains(body, `id="none"`) {
+		t.Fatalf("a cancelled code is still offered: %s", body)
+	}
+	resp, _ = http.PostForm(c.ts.URL+"/phone/approve", url.Values{"qr": {"qr-nope"}, "account": {"demo"}})
+	raw, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 404 || !strings.Contains(string(raw), `id="error"`) {
+		t.Fatalf("bad code: %d %s", resp.StatusCode, raw)
 	}
 }

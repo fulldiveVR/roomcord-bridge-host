@@ -177,7 +177,7 @@ A phone login with an unknown number creates the account `p<digits>`.
 
 | Flow | Steps on the wire | Test paths |
 |---|---|---|
-| `qr` | `qr` (pollable, refreshed with the same `stepId` when the code expires), `done` | Approve on the phone page `GET /phone` (pick the account, press Approve) or with `POST /control/qr/{qrId}/approve`. |
+| `qr` | `qr` (pollable, refreshed with the same `stepId` when the code expires), `done` | Approve on the phone page `GET /phone` (a "Link a device" screen: pick the account, press Link device) or with `POST /control/qr/{qrId}/approve`. |
 | `phone` | `phone_number_input`, `code_input`, `done` | SMS code is always `123456`. A number that starts with `+999` gives `invalid_phone_number`. A wrong code gives `invalid_code` with the attempts left in the message; the third wrong code fails the login. |
 | `password` | `form_input` (username, password), `code_input` when the account has 2FA, `done` | A wrong password gives the same step with `invalid_input`; a wrong 2FA code gives `invalid_code`. |
 | `web` | `web_session_capture`, `done` | Opens `<FAKECHAT_WEB_URL>/web/login`. The sign-in form (and the 2FA form for `secure`) sets the httpOnly cookie `fc_session` and the cookie `fc_user`, then redirects to `/web/app`. Capture fields: `session` (required, cookie `fc_session`, pattern `^fcs_[0-9a-f]+$`) and `user` (optional, cookie `fc_user`). `waitForUrlPattern` matches `<origin>/web/app`. A well-formed session that the server does not know fails the login. |
@@ -261,7 +261,7 @@ curl -H "$C" -X POST http://127.0.0.1:29400/control/qr/qr-000150/approve -d '{"a
 
 ### Network API (what the connector uses)
 
-`/api/v1` with `Authorization: Bearer <access token>`. Auth: `POST auth/qr`, `GET auth/qr/{qrId}?wait=<s>` (long poll), `POST auth/phone`, `POST auth/phone/verify`, `POST auth/password`, `POST auth/2fa`, `POST auth/web` (cookie value to access token). Data: `GET me`, `POST logout`, `GET users/{id}`, `GET chats`, `GET chats/{id}`, `GET chats/{id}/messages?before|after=<msgId>&limit=` (oldest first in a page), `POST chats/{id}/messages` (idempotent on `clientId`), `PATCH`/`DELETE chats/{id}/messages/{msgId}`, `PUT`/`DELETE chats/{id}/messages/{msgId}/reactions/{emoji}`, `POST chats/{id}/read`, `POST chats/{id}/typing`, `POST media` (multipart `file`, up to 64 MiB), `GET media/{id}`, `WS events?since=<seq>`. The stream starts with `hello` (the head seq), replays every later event of the account, and skips events that the same session caused. JSON shapes: `internal/fakechat/proto`.
+`/api/v1` with `Authorization: Bearer <access token>`. Auth: `POST auth/qr`, `GET auth/qr/{qrId}?wait=<s>` (long poll), `DELETE auth/qr/{qrId}` (withdraw a code that is not approved), `POST auth/phone`, `POST auth/phone/verify`, `POST auth/password`, `POST auth/2fa`, `POST auth/web` (cookie value to access token). Data: `GET me`, `POST logout`, `GET users/{id}`, `GET chats`, `GET chats/{id}`, `GET chats/{id}/messages?before|after=<msgId>&limit=` (oldest first in a page), `POST chats/{id}/messages` (idempotent on `clientId`), `PATCH`/`DELETE chats/{id}/messages/{msgId}`, `PUT`/`DELETE chats/{id}/messages/{msgId}/reactions/{emoji}`, `POST chats/{id}/read`, `POST chats/{id}/typing`, `POST media` (multipart `file`, up to 64 MiB), `GET media/{id}`, `WS events?since=<seq>`. The stream starts with `hello` (the head seq), replays every later event of the account, and skips events that the same session caused. JSON shapes: `internal/fakechat/proto`.
 
 ## Security
 
