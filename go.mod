@@ -18,6 +18,7 @@ require (
 	go.mau.fi/mautrix-twitter v0.2609.1-0.20261120174138-77b2290c8537
 	go.mau.fi/mautrix-whatsapp v0.2611.1-0.20261120223127-eecc2538bf7e
 	go.mau.fi/util v0.11.1
+	go.mau.fi/whatsmeow v0.0.0-20261116172437-19d61352436f
 	gopkg.in/yaml.v3 v3.0.1
 	maunium.net/go/mautrix v0.33.1-0.20261120111454-33abe66d85a0
 )
@@ -89,7 +90,6 @@ require (
 	github.com/yuin/goldmark v1.8.7 // indirect
 	go.mau.fi/libsignal v0.2.3 // indirect
 	go.mau.fi/webp v0.3.0 // indirect
-	go.mau.fi/whatsmeow v0.0.0-20261116172437-19d61352436f // indirect
 	go.mau.fi/zeroconfig v0.2.0 // indirect
 	go.mau.fi/zerozap v0.1.2 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
