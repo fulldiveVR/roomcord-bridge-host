@@ -18,6 +18,9 @@
 package networks
 
 import (
+	"os"
+	"runtime"
+
 	"maunium.net/go/mautrix/bridgev2"
 
 	waconnector "go.mau.fi/mautrix-whatsapp/pkg/connector"
@@ -27,6 +30,32 @@ import (
 
 func init() { register("whatsapp", WhatsApp) }
 
+// WhatsApp links as a Chrome companion named after the host OS, so the phone's Linked devices list
+// shows it like a WhatsApp Web session. Upstream defaults ("unknown") show "Other device" with a "?" icon.
+// The phone reads these props only at pairing: a linked session keeps its old name until it re-links.
 func WhatsApp() hosts.Factory {
-	return exampleFactory("whatsapp", func() bridgev2.NetworkConnector { return &waconnector.WhatsAppConnector{} }).Factory
+	return exampleFactory("whatsapp", func() bridgev2.NetworkConnector { return &waconnector.WhatsAppConnector{} }).WithConfig(func(conn bridgev2.NetworkConnector) {
+		c := conn.(*waconnector.WhatsAppConnector)
+		c.Config.OSName = envOr("WHATSAPP_OS_NAME", hostOSName(runtime.GOOS))
+		c.Config.BrowserName = envOr("WHATSAPP_BROWSER_NAME", "chrome")
+	})
+}
+
+func hostOSName(goos string) string {
+	switch goos {
+	case "darwin":
+		return "Mac OS"
+	case "windows":
+		return "Windows"
+	case "linux":
+		return "Linux"
+	}
+	return goos
+}
+
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
